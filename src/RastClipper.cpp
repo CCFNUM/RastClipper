@@ -3,7 +3,7 @@
 // Author     : Mhamad Mahdi Alloush
 // Description: Rasterization-based polygon clipping implementation.
 //              Scan-line rasterization with depth-buffer compositing.
-// Copyright (c) 2024 CCFNUM, Lucerne University of Applied Sciences and
+// Copyright (c) 2026 CCFNUM, Lucerne University of Applied Sciences and
 // Arts.
 // SPDX-License-Identifier: BSD-3-Clause
 
