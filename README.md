@@ -5,9 +5,11 @@ fractions via scan-line rasterization and depth-buffer compositing.
 
 Given a **subject** polygon and one or more **clip** polygons in 2-D,
 RastClipper rasterizes them onto a shared bitmap and returns the fractional
-area of the subject that each clip polygon covers.  The approach is
-topology-agnostic: triangles, quadrilaterals, pentagons, and arbitrary
-simple polygons can be freely mixed on either side.
+area of the subject that each clip polygon covers, together with the
+**pixel-weighted centroid** of each overlap region in the original input
+coordinate system.  The approach is topology-agnostic: triangles,
+quadrilaterals, pentagons, and arbitrary simple polygons can be freely
+mixed on either side.
 
 ## Motivation
 
@@ -43,7 +45,7 @@ The rasterization pipeline has five stages:
   [4] Scan-line fill — edge-table rasterization with depth-buffer test
        |
        v
-  [5] Pixel counting — 4-neighbor interior erosion, per-colour fractions
+  [5] Pixel counting — 4-neighbor erosion, per-colour fractions & centroids
 ```
 
 ### 1. Viewport mapping
@@ -89,7 +91,7 @@ is drawn at depth 0.0 (ZFLESS).  A clip pixel is written only where the
 subject has already been drawn (depth 1.0 > 0.0), naturally restricting
 overlap to the subject's interior.
 
-### 5. Pixel counting
+### 5. Pixel counting and centroid accumulation
 
 Interior pixels are counted using **4-neighbor erosion**: a pixel is
 counted only if all four of its direct neighbours (up, down, left, right)
@@ -101,6 +103,12 @@ Each clip polygon is assigned a unique colour.  The fraction for clip *i*
 is the number of interior pixels coloured *i* divided by the total number
 of interior pixels (subject + all clips).
 
+In the same loop, the **pixel coordinates** (I, J) of each interior pixel
+are accumulated per colour.  Dividing by the pixel count gives the average
+pixel position, which is then converted back through the inverse viewport
+mapping (pixel → normalised [-1, 1] → input coordinates) to produce the
+overlap centroid in the caller's original 2-D coordinate system.
+
 ## API
 
 ```cpp
@@ -111,11 +119,20 @@ struct PointD { double x, y; };
 using  PathD  = std::vector<PointD>;
 using  PathsD = std::vector<PathD>;
 
+// Result of intersection fraction computation.
+struct IntersectionResult
+{
+    std::vector<double> fractions; // area fractions, one per clip
+    std::vector<PointD> centroids; // overlap centroids in input 2-D coords,
+                                   // one per clip (zero if no overlap)
+};
+
 // Signed polygon area (shoelace formula).
 double Area(const PathD& path);
 
-// Compute overlap fractions of each clip polygon against the subject.
-std::vector<double> IntersectionFractions(
+// Compute overlap fractions and centroids of each clip polygon
+// against the subject.
+IntersectionResult IntersectionFractions(
     const PathD&  subject,
     const PathsD& clips,
     int resolution = 128);
@@ -133,12 +150,20 @@ std::vector<double> IntersectionFractions(
 
 ### Return value
 
-A `std::vector<double>` of size `clips.size()`.  Each entry is the
-fraction of the subject's rasterized interior area covered by the
-corresponding clip polygon.  Values are in [0, 1].  When clips do not
-overlap, they sum to at most 1.0.  When clips *do* overlap, earlier
-clips (lower index) take priority in the depth buffer; the later clip
-only gets pixels that the earlier one did not already claim.
+An `IntersectionResult` containing:
+
+- **`fractions`** — a `std::vector<double>` of size `clips.size()`.  Each
+  entry is the fraction of the subject's rasterized interior area covered
+  by the corresponding clip polygon.  Values are in [0, 1].  When clips do
+  not overlap, they sum to at most 1.0.  When clips *do* overlap, earlier
+  clips (lower index) take priority in the depth buffer; the later clip
+  only gets pixels that the earlier one did not already claim.
+
+- **`centroids`** — a `std::vector<PointD>` of size `clips.size()`.  Each
+  entry is the pixel-weighted centroid of the overlap region between the
+  subject and the corresponding clip polygon, expressed in the original
+  input coordinate system.  If a clip has zero overlap (fraction = 0), its
+  centroid is `{0, 0}`.
 
 ## Building
 
