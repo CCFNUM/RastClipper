@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# File       : format_code
+# Created    : Sun Mar 16 2026
+# Author     : Mhamad Mahdi Alloush
+# Description: Project wide code formatting tool (requires clang-format)
+# Copyright (c) 2024 CCFNUM, Lucerne University of Applied Sciences and
+# Arts.
+# SPDX-License-Identifier: BSD-3-Clause
+
+SOURCE='\.\./\.\./(src|include)/.*\.(c|cpp|C|h|hpp|H)'
+
+# format in-place
+find ../.. \
+    -regextype 'egrep' \
+    -regex "${SOURCE}" \
+    -print0 | \
+    xargs -0 -n12 -P$(nproc) clang-format -style=file -i "$@"
