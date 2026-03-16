@@ -73,14 +73,22 @@ static void testIdenticalSquares()
     // Full overlap: subject == clip
     PathsD clips = {unitSquare};
     const int NBIT = 256;
-    auto fractions = IntersectionFractions(unitSquare, clips, NBIT);
+    auto result = IntersectionFractions(unitSquare, clips, NBIT);
 
-    check(fractions.size() == 1, "Returned 1 fraction");
+    check(result.fractions.size() == 1, "Returned 1 fraction");
+    check(result.centroids.size() == 1, "Returned 1 centroid");
 
     // Rasterization tolerance: the 4-neighbor erosion shaves ~1 pixel ring
     // from both subject and clip identically, so the ratio should still be
     // very close to 1.0.  At NBIT=256 the tolerance is ~2%.
-    checkClose(fractions[0], 1.0, 0.02, "Fraction ~ 1.0 for identical squares");
+    checkClose(result.fractions[0], 1.0, 0.02,
+               "Fraction ~ 1.0 for identical squares");
+
+    // Centroid of full overlap with unit square should be at (0.5, 0.5)
+    checkClose(result.centroids[0].x, 0.5, 0.05,
+               "Centroid x ~ 0.5 for identical squares");
+    checkClose(result.centroids[0].y, 0.5, 0.05,
+               "Centroid y ~ 0.5 for identical squares");
 }
 
 // -----------------------------------------------------------------------
@@ -107,13 +115,22 @@ static void testQuarterOverlap()
 
     PathsD clips = {clip};
     const int NBIT = 256;
-    auto fractions = IntersectionFractions(subject, clips, NBIT);
+    auto result = IntersectionFractions(subject, clips, NBIT);
 
-    check(fractions.size() == 1, "Returned 1 fraction");
+    check(result.fractions.size() == 1, "Returned 1 fraction");
+    check(result.centroids.size() == 1, "Returned 1 centroid");
 
     // At NBIT=256, rasterization error is ~O(1/NBIT) ≈ 0.4%.
     // Use 5% tolerance to be safe against edge-erosion effects.
-    checkClose(fractions[0], 0.25, 0.05, "Fraction ~ 0.25 for quarter overlap");
+    checkClose(result.fractions[0], 0.25, 0.05,
+               "Fraction ~ 0.25 for quarter overlap");
+
+    // Overlap region is [(0.5,0.5),(1,0.5),(1,1),(0.5,1)].
+    // Its centroid is (0.75, 0.75).
+    checkClose(result.centroids[0].x, 0.75, 0.05,
+               "Centroid x ~ 0.75 for quarter overlap");
+    checkClose(result.centroids[0].y, 0.75, 0.05,
+               "Centroid y ~ 0.75 for quarter overlap");
 }
 
 // -----------------------------------------------------------------------
@@ -164,23 +181,49 @@ static void testMixedTopologies()
 
     PathsD clips = {clipQuad, clipPent, clipTri};
     const int NBIT = 256;
-    auto fractions = IntersectionFractions(subject, clips, NBIT);
+    auto result = IntersectionFractions(subject, clips, NBIT);
 
-    check(fractions.size() == 3, "Returned 3 fractions");
+    check(result.fractions.size() == 3, "Returned 3 fractions");
+    check(result.centroids.size() == 3, "Returned 3 centroids");
 
-    checkClose(fractions[0], 0.12, 0.02,
+    checkClose(result.fractions[0], 0.12, 0.02,
                "Quad fraction ~ 0.12");
-    checkClose(fractions[1], 0.15, 0.02,
+    checkClose(result.fractions[1], 0.15, 0.02,
                "Pentagon fraction ~ 0.15");
-    checkClose(fractions[2], 0.04, 0.02,
+    checkClose(result.fractions[2], 0.04, 0.02,
                "Small triangle fraction ~ 0.04");
 
-    const double total = fractions[0] + fractions[1] + fractions[2];
+    const double total =
+        result.fractions[0] + result.fractions[1] + result.fractions[2];
     checkClose(total, 0.31, 0.03,
                "Sum of fractions ~ 0.31");
 
-    std::cout << "  INFO: fractions = [" << fractions[0] << ", "
-              << fractions[1] << ", " << fractions[2] << "]\n";
+    // Clip 0 = quad [(1,1),(4,1),(4,3),(1,3)]: centroid at (2.5, 2.0)
+    checkClose(result.centroids[0].x, 2.5, 0.3,
+               "Quad centroid x ~ 2.5");
+    checkClose(result.centroids[0].y, 2.0, 0.3,
+               "Quad centroid y ~ 2.0");
+
+    // Clip 1 = pentagon [(5,1),(8,1),(8,3),(7,4),(5,3)]: centroid at (6.6, 2.2)
+    // (area-weighted centroid of the pentagon)
+    checkClose(result.centroids[1].x, 6.6, 0.5,
+               "Pentagon centroid x ~ 6.6");
+    checkClose(result.centroids[1].y, 2.2, 0.5,
+               "Pentagon centroid y ~ 2.2");
+
+    // Clip 2 = triangle [(3,5),(5,5),(4,7)]: centroid at (4.0, 5.67)
+    checkClose(result.centroids[2].x, 4.0, 0.3,
+               "Triangle centroid x ~ 4.0");
+    checkClose(result.centroids[2].y, 5.67, 0.3,
+               "Triangle centroid y ~ 5.67");
+
+    std::cout << "  INFO: fractions = [" << result.fractions[0] << ", "
+              << result.fractions[1] << ", " << result.fractions[2] << "]\n";
+    std::cout << "  INFO: centroids = [(" << result.centroids[0].x << ", "
+              << result.centroids[0].y << "), (" << result.centroids[1].x
+              << ", " << result.centroids[1].y << "), ("
+              << result.centroids[2].x << ", " << result.centroids[2].y
+              << ")]\n";
 }
 
 // -----------------------------------------------------------------------

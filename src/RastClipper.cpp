@@ -545,17 +545,19 @@ void drawPolygon(std::vector<int>& bitcol,
 // IntersectionFractions
 // -----------------------------------------------------------------------
 
-std::vector<double>
+IntersectionResult
 IntersectionFractions(const PathD& subject, const PathsD& clips, int resolution)
 {
     const int IRES = resolution;
     const int IRES2 = IRES * IRES;
     const int M = static_cast<int>(clips.size());
 
-    std::vector<double> fractions(M, 0.0);
+    IntersectionResult result;
+    result.fractions.resize(M, 0.0);
+    result.centroids.resize(M, {0.0, 0.0});
 
     if (subject.size() < 3 || M == 0)
-        return fractions;
+        return result;
 
     // Subject bounding box
     double uMin = subject[0].x, uMax = subject[0].x;
@@ -575,7 +577,7 @@ IntersectionFractions(const PathD& subject, const PathsD& clips, int resolution)
     const double vHalfRange = 1.05 * 0.5 * (vMax - vMin);
 
     if (uHalfRange < 1e-30 || vHalfRange < 1e-30)
-        return fractions;
+        return result;
 
     auto toNorm = [&](double u, double v, double depth) -> Vertex3
     { return {(u - uCenter) / uHalfRange, (v - vCenter) / vHalfRange, depth}; };
@@ -609,10 +611,13 @@ IntersectionFractions(const PathD& subject, const PathsD& clips, int resolution)
         drawPolygon(bitcol, bitdep, IRES, cv.data(), n, ZFLESS, ci + 2);
     }
 
-    // Count interior pixels with 4-neighbor erosion
+    // Count interior pixels with 4-neighbor erosion and accumulate
+    // pixel-weighted centroids per clip colour.
     // 1-based loop: J=2..IRES-1 (y), I=2..IRES-1 (x)
     int icount = 0;
     std::vector<int> colourCounts(M, 0);
+    std::vector<double> centroidSumI(M, 0.0);
+    std::vector<double> centroidSumJ(M, 0.0);
 
     for (int j = 2; j <= IRES - 1; ++j)
     {
@@ -634,7 +639,12 @@ IntersectionFractions(const PathD& subject, const PathsD& clips, int resolution)
             ++icount;
             const int col = bitcol[idx];
             if (col >= 2 && col - 2 < M)
-                ++colourCounts[col - 2];
+            {
+                const int ci = col - 2;
+                ++colourCounts[ci];
+                centroidSumI[ci] += static_cast<double>(i);
+                centroidSumJ[ci] += static_cast<double>(j);
+            }
         }
     }
 
@@ -642,10 +652,31 @@ IntersectionFractions(const PathD& subject, const PathsD& clips, int resolution)
     {
         const double inv = 1.0 / static_cast<double>(icount);
         for (int i = 0; i < M; ++i)
-            fractions[i] = static_cast<double>(colourCounts[i]) * inv;
+        {
+            result.fractions[i] = static_cast<double>(colourCounts[i]) * inv;
+
+            if (colourCounts[i] > 0)
+            {
+                // Average pixel position (1-based)
+                const double avgI =
+                    centroidSumI[i] / static_cast<double>(colourCounts[i]);
+                const double avgJ =
+                    centroidSumJ[i] / static_cast<double>(colourCounts[i]);
+
+                // Pixel (1-based) -> normalised [-1,1]
+                const double normU =
+                    2.0 * (avgI - 1.0) / static_cast<double>(IRES - 1) - 1.0;
+                const double normV =
+                    2.0 * (avgJ - 1.0) / static_cast<double>(IRES - 1) - 1.0;
+
+                // Normalised [-1,1] -> input coordinates
+                result.centroids[i].x = uCenter + normU * uHalfRange;
+                result.centroids[i].y = vCenter + normV * vHalfRange;
+            }
+        }
     }
 
-    return fractions;
+    return result;
 }
 
 } // namespace RastClipper
