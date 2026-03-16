@@ -4,7 +4,7 @@
 // Description: Rasterization-based polygon clipping library.
 //              Mirrors Clipper2 type names (PointD, PathD, PathsD) so that
 //              switching between Clipper2 and RastClipper is straightforward.
-// Copyright (c) 2024 CCFNUM, Lucerne University of Applied Sciences and
+// Copyright (c) 2026 CCFNUM, Lucerne University of Applied Sciences and
 // Arts.
 // SPDX-License-Identifier: BSD-3-Clause
 
