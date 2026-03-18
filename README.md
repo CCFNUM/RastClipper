@@ -236,3 +236,7 @@ target_link_libraries(your_target PRIVATE RastClipper::RastClipper)
 BSD-3-Clause.  See file headers for details.
 
 Copyright (c) 2026 CCFNUM, Lucerne University of Applied Sciences and Arts.
+
+## Contact
+
+* **Project Maintainer:** Lucian Hanimann ([lucian.hanimann@hslu.ch](mailto:lucian.hanimann@hslu.ch))
